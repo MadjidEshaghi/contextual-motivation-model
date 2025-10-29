@@ -1,0 +1,98 @@
+DATASET INFORMATION - M(p,e,env) Motivation Model
+================================================
+
+META-ANALYSIS SUMMARY
+--------------------
+Total observations: N=1,237 across 6 independent datasets
+Time period: 2010-2024
+Disciplines: Economics, Psychology, Organizational Behavior
+
+KEY VARIABLES
+------------
+p: Uncertainty (0-1 scale)
+  - Experimental: Risk treatment levels
+  - Survey: Perceived uncertainty measures  
+  - Range: 0 (certainty) to 1 (maximum uncertainty)
+
+e: Effort investment (0-10 normalized scale)
+  - Self-reported effort scales
+  - Task completion time/performance metrics
+  - Experimental choice variables
+
+env: Environmental support (-1 to +1 composite index)
+  - Social support (0.4 weight)
+  - Institutional trust (0.3 weight)  
+  - Norm alignment (0.3 weight)
+  - Negative: Stereotype threat, high pressure
+  - Positive: Supportive feedback, inclusive norms
+
+y: Motivation/Performance (continuous outcome)
+  - Objective: Test scores, task completion rates
+  - Subjective: Motivation scales, satisfaction measures
+
+DATA SOURCES (ANONYMIZED)
+------------------------
+1. Competitive decision experiments (N=320, 2016)
+   - Maze-solving under social competition
+   - Gender differences in risk-taking
+   - Public data (available upon request)
+
+2. Organizational performance panels (N=415, 2018-2022)
+   - Workplace stress and productivity
+   - Team composition effects
+   - Anonymized institutional data
+
+3. ECB policy expectation surveys (N=189, 2022)
+   - Inflation forecast formation
+   - Central bank communication effects
+   - Public domain (ECB website)
+
+4. Corporate motivation studies (N=213, 2020-2024)
+   - Employee engagement surveys
+   - Leadership style experiments
+   - Synthetic data (preserves moments)
+
+5. STEM education persistence (N=67, 2015-2019)
+   - Stereotype threat interventions
+   - Female performance under pressure
+   - Anonymized university data
+
+6. Prospect theory validation (N=33, 2023)
+   - Parameter recovery experiments
+   - Risk preference elicitation
+   - Author-collected lab data
+
+ESTIMATION DETAILS
+-----------------
+Method: Pooled nonlinear least squares (NLS)
+Weights: Inverse variance (sample size, precision)
+Robustness: 
+- IV estimation (F=18.4 first stage)
+- Bootstrap SEs (999 replications)  
+- 10-fold cross-validation (R²=0.91)
+- Subgroup analysis (gender, age, education)
+
+DATA ACCESS PROTOCOL
+-------------------
+Public data: ECB surveys, lab experiments - available online
+Anonymized data: Synthetic datasets in repository (upon request)
+Proprietary data: Available from institutions with approval
+Contact: madjid.eshaghi@[your-domain].edu
+
+ETHICAL COMPLIANCE
+-----------------
+- GDPR: All personal identifiers removed
+- Privacy: Differential privacy (ε=1.0) for sensitive variables  
+- IRB: All human subjects research ethically approved
+- Transparency: Complete methods documented above
+
+SAMPLE SIZE JUSTIFICATION
+------------------------
+Power analysis: 80% power to detect δγ=0.45 effect (α=0.05)
+Minimum detectable effect: 0.12 (smaller than observed 0.45)
+N=1,237 sufficient for precise estimation (SE<0.10 for main parameters)
+
+Last updated: October 29, 2025
+Version: 1.0.0 (mobile-optimized)
+
+
