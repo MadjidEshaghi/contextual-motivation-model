@@ -214,7 +214,7 @@ Full manuscript and original data available from author upon request.
 
 Madjid Eshaghi Gordji submits "A Contextual Model of Motivation..." for consideration.
 
-Complete replication materials: https://github.com/MadjidEshaghi/motivation-model-replication
+Complete replication materials: https://github.com/MadjidEshaghi/contextual-motivation-model
 
 The repository provides:
 • Core model M(p,e,env) with R implementation
@@ -227,8 +227,8 @@ All materials MIT licensed for academic use. Full manuscript available.
 ## 🤝 Contact
 
 **Madjid Eshaghi Gordji**  
-**Email**: madjid.eshaghi@[your-domain].edu  
-**GitHub**: @MadjidEshaghi  
+**Email**: meshaghi@semnan.ac.ir, madjid.eshaghi@gmail.com 
+**GitHub**: @MadjidEshaghi
 
 **Support**: 
 - Code questions: Review R implementation above
