@@ -1,0 +1,10 @@
+name: causal-self-contingency-rps
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy>=2.0
+  - scipy>=1.13
+  - pandas>=2.2
+  - pytest>=8
+  - pip

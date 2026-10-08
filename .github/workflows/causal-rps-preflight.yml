@@ -34,7 +34,8 @@ jobs:
           pip install -e ".[test]"
 
       - name: Run unit tests
-        run: pytest -q
+        run: |
+          pytest -q
 
       - name: Run implementation-only preflight
         run: |
@@ -52,7 +53,8 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          x = json.loads(Path("results/gate1/preflight_ci.json").read_text())
+          p = Path("results/gate1/preflight_ci.json")
+          x = json.loads(p.read_text())
           assert x["mode"] == "preflight"
           assert x["decision"] == "IMPLEMENTATION_ONLY"
           assert x["scientific_gate"] is False
