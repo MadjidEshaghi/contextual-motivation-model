@@ -1,0 +1,101 @@
+name: causal-rps-dyson-data-audit
+
+on:
+  push:
+    paths:
+      - ".github/workflows/causal-rps-dyson-data-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit-and-mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install audit dependencies
+        run: pip install requests beautifulsoup4 pandas xlrd
+      - name: Download and audit official Dyson supplement
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urljoin
+          import hashlib, json
+          import pandas as pd
+          import requests
+          from bs4 import BeautifulSoup
+
+          article = "https://pmc.ncbi.nlm.nih.gov/articles/PMC4740902/"
+          target_name = "srep20479-s2.xls"
+          h = {"User-Agent": "causal-rps-reproducibility-audit/1.0"}
+          html = requests.get(article, headers=h, timeout=60)
+          html.raise_for_status()
+          soup = BeautifulSoup(html.text, "html.parser")
+
+          candidates = []
+          for a in soup.find_all("a", href=True):
+              href = a["href"]
+              text = a.get_text(" ", strip=True)
+              if target_name in href or target_name in text:
+                  candidates.append(urljoin(article, href))
+          if not candidates:
+              raise RuntimeError("Official supplementary XLS link was not found on PMC page")
+
+          url = candidates[0]
+          res = requests.get(url, headers=h, timeout=60)
+          res.raise_for_status()
+          data = res.content
+          if len(data) < 1000:
+              raise RuntimeError(f"Downloaded file unexpectedly small: {len(data)} bytes")
+
+          out = Path("projects/causal-self-contingency-rps/data/external/dyson2016")
+          out.mkdir(parents=True, exist_ok=True)
+          xls = out / target_name
+          xls.write_bytes(data)
+
+          book = pd.ExcelFile(xls, engine="xlrd")
+          sheets = {}
+          for name in book.sheet_names:
+              df = pd.read_excel(xls, sheet_name=name, header=None, engine="xlrd")
+              sheets[name] = {"rows": int(df.shape[0]), "cols": int(df.shape[1])}
+
+          audit = {
+              "source_article": article,
+              "resolved_official_url": url,
+              "article_doi": "10.1038/srep20479",
+              "filename": target_name,
+              "size_bytes": len(data),
+              "sha256": hashlib.sha256(data).hexdigest(),
+              "sheets": sheets,
+              "classification": "official supplementary/summary material; not assumed trial-level raw",
+              "license": "CC BY 4.0 per article/PMC record, subject to any file-specific credit line",
+          }
+          (out / "AUDIT.json").write_text(json.dumps(audit, indent=2), encoding="utf-8")
+          (out / "LICENSE_SOURCE.txt").write_text(
+              "Dyson et al. (2016), Scientific Reports 6:20479\n"
+              "DOI: https://doi.org/10.1038/srep20479\n"
+              "PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC4740902/\n"
+              "License: CC BY 4.0 per article/PMC record unless a file-specific credit line states otherwise.\n"
+              "This mirrored file is supplementary/summary material and is not represented as trial-level raw data.\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(audit, indent=2))
+          PY
+      - name: Commit audited supplementary file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add projects/causal-self-contingency-rps/data/external/dyson2016
+          if git diff --cached --quiet; then
+            echo "No data changes to commit"
+          else
+            git commit -m "Mirror audited Dyson 2016 CC BY supplementary summary [skip ci]"
+            git push origin HEAD:main
+          fi
