@@ -21,39 +21,36 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install audit dependencies
-        run: pip install requests beautifulsoup4 pandas xlrd
-      - name: Download and audit official Dyson supplement
+        run: pip install requests pandas xlrd
+      - name: Download official PMC Open Access package and audit Dyson supplement
         run: |
           python - <<'PY'
           from pathlib import Path
-          from urllib.parse import urljoin
-          import hashlib, json
+          import hashlib, io, json, tarfile
           import pandas as pd
           import requests
-          from bs4 import BeautifulSoup
+          import xml.etree.ElementTree as ET
 
-          article = "https://pmc.ncbi.nlm.nih.gov/articles/PMC4740902/"
+          pmcid = "PMC4740902"
           target_name = "srep20479-s2.xls"
-          h = {"User-Agent": "causal-rps-reproducibility-audit/1.0"}
-          html = requests.get(article, headers=h, timeout=60)
-          html.raise_for_status()
-          soup = BeautifulSoup(html.text, "html.parser")
+          oa_api = f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}"
+          h = {"User-Agent": "causal-rps-reproducibility-audit/1.1"}
 
-          candidates = []
-          for a in soup.find_all("a", href=True):
-              href = a["href"]
-              text = a.get_text(" ", strip=True)
-              if target_name in href or target_name in text:
-                  candidates.append(urljoin(article, href))
-          if not candidates:
-              raise RuntimeError("Official supplementary XLS link was not found on PMC page")
+          meta = requests.get(oa_api, headers=h, timeout=60)
+          meta.raise_for_status()
+          root = ET.fromstring(meta.content)
+          links = root.findall(".//link")
+          tgz = next((x.attrib["href"] for x in links if x.attrib.get("format") == "tgz"), None)
+          if tgz is None:
+              raise RuntimeError("PMC OA API returned no tgz package link")
 
-          url = candidates[0]
-          res = requests.get(url, headers=h, timeout=60)
-          res.raise_for_status()
-          data = res.content
-          if len(data) < 1000:
-              raise RuntimeError(f"Downloaded file unexpectedly small: {len(data)} bytes")
+          pkg = requests.get(tgz, headers=h, timeout=120)
+          pkg.raise_for_status()
+          with tarfile.open(fileobj=io.BytesIO(pkg.content), mode="r:gz") as tf:
+              members = [m for m in tf.getmembers() if m.name.endswith(target_name)]
+              if len(members) != 1:
+                  raise RuntimeError(f"Expected one {target_name}; found {[m.name for m in members]}")
+              data = tf.extractfile(members[0]).read()
 
           out = Path("projects/causal-self-contingency-rps/data/external/dyson2016")
           out.mkdir(parents=True, exist_ok=True)
@@ -64,26 +61,32 @@ jobs:
           sheets = {}
           for name in book.sheet_names:
               df = pd.read_excel(xls, sheet_name=name, header=None, engine="xlrd")
-              sheets[name] = {"rows": int(df.shape[0]), "cols": int(df.shape[1])}
+              sheets[name] = {
+                  "rows": int(df.shape[0]),
+                  "cols": int(df.shape[1]),
+                  "nonempty_cells": int(df.notna().sum().sum()),
+              }
 
           audit = {
-              "source_article": article,
-              "resolved_official_url": url,
+              "pmcid": pmcid,
+              "oa_api": oa_api,
+              "oa_package_url": tgz,
               "article_doi": "10.1038/srep20479",
               "filename": target_name,
               "size_bytes": len(data),
               "sha256": hashlib.sha256(data).hexdigest(),
               "sheets": sheets,
               "classification": "official supplementary/summary material; not assumed trial-level raw",
-              "license": "CC BY 4.0 per article/PMC record, subject to any file-specific credit line",
+              "license": "CC BY 4.0 per article/PMC OA record; preserve attribution and any file-specific credit line",
           }
           (out / "AUDIT.json").write_text(json.dumps(audit, indent=2), encoding="utf-8")
           (out / "LICENSE_SOURCE.txt").write_text(
               "Dyson et al. (2016), Scientific Reports 6:20479\n"
               "DOI: https://doi.org/10.1038/srep20479\n"
               "PMC: https://pmc.ncbi.nlm.nih.gov/articles/PMC4740902/\n"
-              "License: CC BY 4.0 per article/PMC record unless a file-specific credit line states otherwise.\n"
-              "This mirrored file is supplementary/summary material and is not represented as trial-level raw data.\n",
+              f"PMC OA API: {oa_api}\n"
+              "License: CC BY 4.0 per article/PMC OA record, subject to file-specific credit lines.\n"
+              "Classification: official supplementary/summary material; not represented as trial-level raw data.\n",
               encoding="utf-8",
           )
           print(json.dumps(audit, indent=2))
