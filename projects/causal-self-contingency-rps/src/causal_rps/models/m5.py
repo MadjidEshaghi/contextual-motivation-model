@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 import math
 import numpy as np
 
-from causal_rps.beliefs import dirichlet_information_gain
+from causal_rps.beliefs import dirichlet_information_gain_batch
 from causal_rps.constants import ALPHA_H, ALPHA_O
 from causal_rps.contexts import History, advance, self_context
 from causal_rps.models.base import OnlineModel
@@ -40,8 +40,15 @@ class M5(OnlineModel):
             lambda_o=self.rng.beta(8, 2, self.n_particles),
             weights=np.ones(self.n_particles) / self.n_particles,
         )
+        h = History()
         for obs in runin_data.observations:
-            self._assimilate(state, obs, False)
+            ctx = self_context(h, self.context_kind)
+            for arr in state.habit.values():
+                arr *= state.lambda_h[:, None]
+            self._arr(state.habit, ctx)[:, obs.a] += 1.0
+            advance(h, obs.a, obs.b, obs.r)
+        state.history = History()
+        state.opponent.clear()
         return state
 
     def _arr(self, table, key):
@@ -64,42 +71,47 @@ class M5(OnlineModel):
     def _next_history(history, a, b, r):
         return History(prev_a=a, prev2_a=history.prev_a, prev_b=b, prev_r=r)
 
-    def _policy_scores_particle(self, state, i):
+    def _choice_probs(self, state):
+        n = self.n_particles
         ctx = self_context(state.history, self.context_kind)
-        h_now = self._habit_p(state, ctx)[i]
-        q_b1 = self._opp_p(state, ctx)[i]
-        logw, policies = [], []
+        h_now = self._habit_p(state, ctx)
+        q_b1 = self._opp_p(state, ctx)
+
+        logw = np.empty((n, 9))
+        policy_a1 = np.empty(9, dtype=int)
+        col = 0
 
         for a1 in range(3):
-            r1_exp = float(np.dot(q_b1, U[a1]))
+            r1_exp = q_b1 @ U[a1]
             for a2 in range(3):
-                h2_exp = r2_exp = ig_exp = 0.0
+                h2_exp = np.zeros(n)
+                r2_exp = np.zeros(n)
+                ig_exp = np.zeros(n)
+
                 for b1 in range(3):
-                    pb1 = float(q_b1[b1])
+                    pb1 = q_b1[:, b1]
                     r1 = int(U[a1, b1])
                     h_next = self._next_history(state.history, a1, b1, r1)
                     ctx2 = self_context(h_next, self.context_kind)
-                    h2_exp += pb1 * float(self._habit_p(state, ctx2)[i, a2])
-                    alpha2 = self._opp_alpha(state, ctx2)[i]
-                    q_b2 = alpha2 / alpha2.sum()
-                    r2_exp += pb1 * float(np.dot(q_b2, U[a2]))
-                    ig_exp += pb1 * dirichlet_information_gain(alpha2)
+                    h2_exp += pb1 * self._habit_p(state, ctx2)[:, a2]
+                    alpha2 = self._opp_alpha(state, ctx2)
+                    q_b2 = alpha2 / alpha2.sum(axis=1, keepdims=True)
+                    r2_exp += pb1 * (q_b2 @ U[a2])
+                    ig_exp += pb1 * dirichlet_information_gain_batch(alpha2)
 
-                prior = max(float(h_now[a1]) * max(h2_exp, 1e-12), 1e-300)
+                prior = np.maximum(h_now[:, a1] * np.maximum(h2_exp, 1e-12), 1e-300)
                 value = r1_exp + r2_exp + self.epistemic_weight * ig_exp
-                logw.append(math.log(prior) + state.gamma[i] * value)
-                policies.append((a1, a2))
+                logw[:, col] = np.log(prior) + state.gamma * value
+                policy_a1[col] = a1
+                col += 1
 
-        z = np.asarray(logw)
-        z -= z.max()
-        w = np.exp(z); w /= w.sum()
-        out = np.zeros(3)
-        for prob, (a1, _) in zip(w, policies):
-            out[a1] += prob
+        logw -= logw.max(axis=1, keepdims=True)
+        w = np.exp(logw)
+        w /= w.sum(axis=1, keepdims=True)
+        out = np.zeros((n, 3))
+        for j in range(9):
+            out[:, policy_a1[j]] += w[:, j]
         return out
-
-    def _choice_probs(self, state):
-        return np.stack([self._policy_scores_particle(state, i) for i in range(self.n_particles)])
 
     def predict_log_prob(self, state, next_a):
         p = float(np.dot(state.weights, self._choice_probs(state)[:, next_a]))
