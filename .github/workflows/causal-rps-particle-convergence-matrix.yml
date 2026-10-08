@@ -1,0 +1,71 @@
+name: causal-rps-particle-convergence-matrix
+
+on:
+  push:
+    paths:
+      - ".github/workflows/causal-rps-particle-convergence-matrix.yml"
+  workflow_dispatch:
+
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        true_model: [M3,M4,M5,M6]
+        particles: [16,64,256]
+    defaults:
+      run:
+        working-directory: projects/causal-self-contingency-rps
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+      - run: pytest -q
+      - name: Run convergence shard
+        run: |
+          mkdir -p results/gate1/convergence_shards
+          python scripts/particle_convergence_shard.py \
+            --true-model "${{ matrix.true_model }}" \
+            --particles "${{ matrix.particles }}" \
+            --n-per-true 8 --T 196 --fit-seeds 3 --master-seed 314159 \
+            --output "results/gate1/convergence_shards/${{ matrix.true_model }}_p${{ matrix.particles }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "conv-${{ matrix.true_model }}-p${{ matrix.particles }}"
+          path: "projects/causal-self-contingency-rps/results/gate1/convergence_shards/*.json"
+          retention-days: 30
+
+  aggregate:
+    needs: shard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/causal-self-contingency-rps
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: conv-*
+          path: projects/causal-self-contingency-rps/results/gate1/convergence_all
+          merge-multiple: false
+      - name: Aggregate convergence
+        run: |
+          python scripts/aggregate_particle_convergence.py \
+            --input-dir results/gate1/convergence_all \
+            --output results/gate1/particle_convergence_matrix.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: particle-convergence-matrix-summary
+          path: projects/causal-self-contingency-rps/results/gate1/particle_convergence_matrix.json
+          retention-days: 90
