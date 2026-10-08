@@ -22,39 +22,33 @@ class M3State:
 
 
 class M3(OnlineModel):
-    """Strong correlational opponent tracker without interventional semantics."""
-
     name = "M3"
 
-    def __init__(self, n_particles: int = 256, seed: int = 0, context_kind: str = "x3"):
+    def __init__(self, n_particles=256, seed=0, context_kind="x3"):
         self.n_particles = int(n_particles)
         self.rng = np.random.default_rng(seed)
         self.context_kind = context_kind
 
-    def initialize(self, priors, runin_data: RunInData) -> M3State:
-        gamma = np.exp(self.rng.normal(np.log(2.0), 0.5, self.n_particles))
-        lambda_o = self.rng.beta(8.0, 2.0, self.n_particles)
-        state = M3State(
-            gamma=gamma,
-            lambda_o=lambda_o,
+    def initialize(self, priors, runin_data: RunInData):
+        # Run-in opponent is different; M3 has no participant-specific habit
+        # state, so opponent statistics and history reset at block start.
+        return M3State(
+            gamma=np.exp(self.rng.normal(np.log(2.0), 0.5, self.n_particles)),
+            lambda_o=self.rng.beta(8.0, 2.0, self.n_particles),
             weights=np.ones(self.n_particles) / self.n_particles,
         )
-        for obs in runin_data.observations:
-            self._assimilate(state, obs, update_parameter_weights=False)
-        return state
 
-    def _get_evidence(self, state: M3State, ctx: tuple[int, ...]) -> np.ndarray:
+    def _get_evidence(self, state, ctx):
         if ctx not in state.evidence:
             state.evidence[ctx] = np.zeros((self.n_particles, 3), dtype=float)
         return state.evidence[ctx]
 
-    def _opponent_probs(self, state: M3State) -> np.ndarray:
+    def _opponent_probs(self, state):
         ctx = self_context(state.history, self.context_kind)
-        e = self._get_evidence(state, ctx)
-        alpha = e + ALPHA_O
+        alpha = self._get_evidence(state, ctx) + ALPHA_O
         return alpha / alpha.sum(axis=1, keepdims=True)
 
-    def _choice_probs(self, state: M3State) -> np.ndarray:
+    def _choice_probs(self, state):
         q_opp = self._opponent_probs(state)
         ev = q_opp @ U.T
         out = np.empty_like(ev)
@@ -62,22 +56,19 @@ class M3(OnlineModel):
             out[i] = softmax(state.gamma[i] * ev[i])
         return out
 
-    def predict_log_prob(self, state: M3State, next_a: int) -> float:
-        probs = self._choice_probs(state)[:, next_a]
-        p = float(np.dot(state.weights, probs))
+    def predict_log_prob(self, state, next_a):
+        p = float(np.dot(state.weights, self._choice_probs(state)[:, next_a]))
         return math.log(max(p, 1e-300))
 
-    def _decay(self, state: M3State) -> None:
+    def _decay(self, state):
         for arr in state.evidence.values():
             arr *= state.lambda_o[:, None]
 
-    def _assimilate(self, state: M3State, obs: ModelObservation, update_parameter_weights=True) -> None:
+    def _assimilate(self, state, obs, update_parameter_weights=True):
         ctx = self_context(state.history, self.context_kind)
         if update_parameter_weights:
-            probs = self._choice_probs(state)[:, obs.a]
-            state.weights *= np.maximum(probs, 1e-300)
+            state.weights *= np.maximum(self._choice_probs(state)[:, obs.a], 1e-300)
             normalize_weights(state.weights)
-
         self._decay(state)
         self._get_evidence(state, ctx)[:, obs.b] += 1.0
 
@@ -87,9 +78,8 @@ class M3(OnlineModel):
             state.lambda_o = state.lambda_o[idx]
             for key in list(state.evidence):
                 state.evidence[key] = state.evidence[key][idx]
-
         advance(state.history, obs.a, obs.b, obs.r)
 
-    def update(self, state: M3State, obs: ModelObservation) -> M3State:
-        self._assimilate(state, obs, update_parameter_weights=True)
+    def update(self, state, obs):
+        self._assimilate(state, obs, True)
         return state
