@@ -1,0 +1,137 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import math
+import numpy as np
+
+from causal_rps.beliefs import dirichlet_information_gain
+from causal_rps.constants import ALPHA_H, ALPHA_O
+from causal_rps.contexts import History, advance, self_context
+from causal_rps.models.base import OnlineModel
+from causal_rps.payoffs import U
+from causal_rps.schema import ModelObservation, RunInData
+from causal_rps.smc import maybe_resample, normalize_weights
+
+
+@dataclass
+class M5State:
+    gamma: np.ndarray
+    lambda_h: np.ndarray
+    lambda_o: np.ndarray
+    weights: np.ndarray
+    habit: dict[tuple[int, ...], np.ndarray] = field(default_factory=dict)
+    opponent: dict[tuple[int, ...], np.ndarray] = field(default_factory=dict)
+    history: History = field(default_factory=History)
+
+
+class M5(OnlineModel):
+    name = "M5"
+
+    def __init__(self, n_particles=128, seed=0, context_kind="x3", epistemic_weight=1.0):
+        self.n_particles = int(n_particles)
+        self.rng = np.random.default_rng(seed)
+        self.context_kind = context_kind
+        self.epistemic_weight = float(epistemic_weight)
+
+    def initialize(self, priors, runin_data: RunInData):
+        state = M5State(
+            gamma=np.exp(self.rng.normal(np.log(2.0), 0.5, self.n_particles)),
+            lambda_h=self.rng.beta(8, 2, self.n_particles),
+            lambda_o=self.rng.beta(8, 2, self.n_particles),
+            weights=np.ones(self.n_particles) / self.n_particles,
+        )
+        for obs in runin_data.observations:
+            self._assimilate(state, obs, False)
+        return state
+
+    def _arr(self, table, key):
+        if key not in table:
+            table[key] = np.zeros((self.n_particles, 3), dtype=float)
+        return table[key]
+
+    def _habit_p(self, state, ctx):
+        a = self._arr(state.habit, ctx) + ALPHA_H
+        return a / a.sum(axis=1, keepdims=True)
+
+    def _opp_alpha(self, state, ctx):
+        return self._arr(state.opponent, ctx) + ALPHA_O
+
+    def _opp_p(self, state, ctx):
+        a = self._opp_alpha(state, ctx)
+        return a / a.sum(axis=1, keepdims=True)
+
+    @staticmethod
+    def _next_history(history, a, b, r):
+        return History(prev_a=a, prev2_a=history.prev_a, prev_b=b, prev_r=r)
+
+    def _policy_scores_particle(self, state, i):
+        ctx = self_context(state.history, self.context_kind)
+        h_now = self._habit_p(state, ctx)[i]
+        q_b1 = self._opp_p(state, ctx)[i]
+        logw, policies = [], []
+
+        for a1 in range(3):
+            r1_exp = float(np.dot(q_b1, U[a1]))
+            for a2 in range(3):
+                h2_exp = r2_exp = ig_exp = 0.0
+                for b1 in range(3):
+                    pb1 = float(q_b1[b1])
+                    r1 = int(U[a1, b1])
+                    h_next = self._next_history(state.history, a1, b1, r1)
+                    ctx2 = self_context(h_next, self.context_kind)
+                    h2_exp += pb1 * float(self._habit_p(state, ctx2)[i, a2])
+                    alpha2 = self._opp_alpha(state, ctx2)[i]
+                    q_b2 = alpha2 / alpha2.sum()
+                    r2_exp += pb1 * float(np.dot(q_b2, U[a2]))
+                    ig_exp += pb1 * dirichlet_information_gain(alpha2)
+
+                prior = max(float(h_now[a1]) * max(h2_exp, 1e-12), 1e-300)
+                value = r1_exp + r2_exp + self.epistemic_weight * ig_exp
+                logw.append(math.log(prior) + state.gamma[i] * value)
+                policies.append((a1, a2))
+
+        z = np.asarray(logw)
+        z -= z.max()
+        w = np.exp(z); w /= w.sum()
+        out = np.zeros(3)
+        for prob, (a1, _) in zip(w, policies):
+            out[a1] += prob
+        return out
+
+    def _choice_probs(self, state):
+        return np.stack([self._policy_scores_particle(state, i) for i in range(self.n_particles)])
+
+    def predict_log_prob(self, state, next_a):
+        p = float(np.dot(state.weights, self._choice_probs(state)[:, next_a]))
+        return math.log(max(p, 1e-300))
+
+    def _decay(self, state):
+        for arr in state.habit.values():
+            arr *= state.lambda_h[:, None]
+        for arr in state.opponent.values():
+            arr *= state.lambda_o[:, None]
+
+    def _assimilate(self, state, obs, update_parameter_weights=True):
+        ctx = self_context(state.history, self.context_kind)
+        if update_parameter_weights:
+            state.weights *= np.maximum(self._choice_probs(state)[:, obs.a], 1e-300)
+            normalize_weights(state.weights)
+
+        self._decay(state)
+        self._arr(state.habit, ctx)[:, obs.a] += 1.0
+        self._arr(state.opponent, ctx)[:, obs.b] += 1.0
+
+        idx = maybe_resample(state.weights, self.rng)
+        if idx is not None:
+            state.gamma = state.gamma[idx]
+            state.lambda_h = state.lambda_h[idx]
+            state.lambda_o = state.lambda_o[idx]
+            for table in (state.habit, state.opponent):
+                for key in list(table):
+                    table[key] = table[key][idx]
+
+        advance(state.history, obs.a, obs.b, obs.r)
+
+    def update(self, state, obs):
+        self._assimilate(state, obs, True)
+        return state
