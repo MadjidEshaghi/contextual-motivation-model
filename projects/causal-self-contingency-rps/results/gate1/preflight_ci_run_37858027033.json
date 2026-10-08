@@ -1,0 +1,23 @@
+{
+  "T": 196,
+  "n_sim_per_model": 5,
+  "particles": 4,
+  "workers": 2,
+  "overall_recovery": 0.7428571428571429,
+  "confusion": {
+    "M0": {"M0": 5, "M1": 0, "M2": 0, "M3": 0, "M4": 0, "M5": 0, "M6": 0},
+    "M1": {"M0": 0, "M1": 5, "M2": 0, "M3": 0, "M4": 0, "M5": 0, "M6": 0},
+    "M2": {"M0": 0, "M1": 0, "M2": 5, "M3": 0, "M4": 0, "M5": 0, "M6": 0},
+    "M3": {"M0": 0, "M1": 0, "M2": 0, "M3": 5, "M4": 0, "M5": 0, "M6": 0},
+    "M4": {"M0": 0, "M1": 0, "M2": 0, "M3": 1, "M4": 1, "M5": 0, "M6": 3},
+    "M5": {"M0": 0, "M1": 0, "M2": 0, "M3": 0, "M4": 1, "M5": 4, "M6": 0},
+    "M6": {"M0": 1, "M1": 0, "M2": 0, "M3": 0, "M4": 2, "M5": 1, "M6": 1}
+  },
+  "runtime_sec": 27.086199123,
+  "scientific_gate": false,
+  "mode": "preflight",
+  "decision": "IMPLEMENTATION_ONLY",
+  "github_actions_run": 37858027033,
+  "artifact_id": 11583884716,
+  "artifact_sha256": "7c2b8a434c650903c38e9d6f51d730eb6679df9007c3e12ab6bfa6d4638eb533"
+}
