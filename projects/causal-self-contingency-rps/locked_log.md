@@ -144,3 +144,35 @@ decision: Implementation-only
 action: "Trigger draft PR CI: run pytest, then N_sim=5 preflight with 4 particles and 2 workers; archive JSON artifact."
 reason: "Move preflight outside the constrained local execution environment. No scientific Gate decision is permitted."
 ```
+
+
+---
+
+## Entry 0006
+
+```yaml
+date: 2026-10-09
+run_id: github_actions_preflight_run_37858027033
+commit_sha: 46e4099f42a686a3d6c82417b2fd9866b8ad8621
+spec_version: 1.2
+data:
+  kind: synthetic
+  generating_model: M0-M6
+  n_sim: 5
+  T: 196
+metric: forward-prequential participant-choice log predictive density
+result:
+  github_actions_run: 37858027033
+  tests: "14/14 passed"
+  particles: 4
+  workers: 2
+  runtime_sec: 27.086199123
+  overall_recovery: 0.7428571428571429
+  confusion_note: "Stored in workflow artifact and logs; N=5 is too small for scientific interpretation."
+  artifact_id: 11583884716
+  artifact_sha256: "7c2b8a434c650903c38e9d6f51d730eb6679df9007c3e12ab6bfa6d4638eb533"
+  scientific_gate: false
+decision: Implementation-only
+action: "Retain pipeline; do not issue Go/No-Go. Scientific Pilot Gate 1 remains N_sim=500 per generating model at T=196 and T=480."
+reason: "CI establishes executable end-to-end generate→fit→forward-score→confusion pipeline, not model identifiability."
+```
