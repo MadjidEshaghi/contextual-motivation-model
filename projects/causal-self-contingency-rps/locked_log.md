@@ -121,3 +121,26 @@ decision: Implementation-only
 action: "Move N=5 pre-flight to CI/compute outside the constrained local execution environment before any scientific Gate-1 run."
 reason: "Runtime/engineering validation only; no Go/No-Go decision is permitted from these runs."
 ```
+
+
+---
+
+## Entry 0005
+
+```yaml
+date: 2026-10-09
+run_id: github_ci_activation
+commit_sha: pending
+spec_version: 1.2
+data:
+  kind: synthetic
+  generating_model: M0-M6
+  n_sim: 5
+  T: 196
+metric: forward-prequential participant-choice log predictive density
+result:
+  status: "CI workflow enabled on the default branch; this run is implementation/runtime validation only."
+decision: Implementation-only
+action: "Trigger draft PR CI: run pytest, then N_sim=5 preflight with 4 particles and 2 workers; archive JSON artifact."
+reason: "Move preflight outside the constrained local execution environment. No scientific Gate decision is permitted."
+```
