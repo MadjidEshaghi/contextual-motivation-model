@@ -176,3 +176,33 @@ decision: Implementation-only
 action: "Retain pipeline; do not issue Go/No-Go. Scientific Pilot Gate 1 remains N_sim=500 per generating model at T=196 and T=480."
 reason: "CI establishes executable end-to-end generate→fit→forward-score→confusion pipeline, not model identifiability."
 ```
+
+
+---
+
+## Entry 0007
+
+```yaml
+date: 2026-10-09
+run_id: smc_particle_convergence_preregister
+commit_sha: a72d2a1a663ece8dd18c87b8284ffadb4553e1b4
+spec_version: 1.2
+data:
+  kind: synthetic-fixed-dataset-numerical-audit
+  generating_model: [M3, M4, M5, M6]
+  n_per_true: 8
+  T: 196
+metric: "Forward-prequential participant-choice LPD stability across SMC particle counts"
+result:
+  status: "criterion registered before convergence run"
+  particle_grid: [16, 64, 256]
+  fitter_seeds_per_cell: 3
+  technical_acceptance_for_64:
+    winner_agreement_64_vs_256_overall: ">= 0.90"
+    winner_agreement_within_each_true_model: ">= 0.75"
+    median_abs_delta_lpd_nats_per_scored_trial: "<= 0.01"
+    p95_abs_delta_lpd_nats_per_scored_trial: "<= 0.05"
+decision: Implementation-only
+action: "If 64 passes, use 64 particles for Pilot Gate 1. If it fails, do not infer science; increase numerical accuracy or revise the approximation implementation only."
+reason: "The N=5 particle sensitivity confusion matrices were materially unstable and are too noisy to choose particle count. This audit compares identical datasets and score estimates directly."
+```
