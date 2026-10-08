@@ -206,3 +206,51 @@ decision: Implementation-only
 action: "If 64 passes, use 64 particles for Pilot Gate 1. If it fails, do not infer science; increase numerical accuracy or revise the approximation implementation only."
 reason: "The N=5 particle sensitivity confusion matrices were materially unstable and are too noisy to choose particle count. This audit compares identical datasets and score estimates directly."
 ```
+
+
+---
+
+## Entry 0008
+
+```yaml
+date: 2026-10-09
+run_id: particle_sensitivity_n5
+commit_sha: 209b4e3e8ca1447bc668c500513f30e6ca5ad376
+spec_version: 1.2
+data:
+  kind: synthetic-numerical-preflight
+  generating_model: M0-M6
+  n_sim: 5
+  T: 196
+metric: "Forward-prequential participant-choice LPD; confusion used only as numerical warning"
+result:
+  particles_4_overall: 0.7428571428571429
+  particles_16_overall: 0.6857142857142857
+  particles_64_overall: 0.6285714285714286
+  observation: "Critical-model classifications varied materially with particle count at N=5."
+decision: Implementation-only
+action: "Do not choose particle count from these noisy confusion matrices. Run the preregistered fixed-dataset 16/64/256 score-convergence audit in Entry 0007."
+reason: "N=5 recovery rates are scientifically meaningless and insufficient for numerical-convergence selection."
+```
+
+---
+
+## Entry 0009
+
+```yaml
+date: 2026-10-09
+run_id: dyson_supplement_retrieval_audit
+commit_sha: f340352691752b079603e076c244cc493b8cb83c
+spec_version: 1.2
+data:
+  kind: external-public-supplement
+  source: "Dyson et al. 2016, DOI 10.1038/srep20479, PMC4740902"
+metric: null
+result:
+  first_attempt: "PMC page link resolved to HTML rather than XLS binary."
+  second_attempt: "Legacy PMC OA API endpoint returned HTTP 404 in the execution environment."
+  scientific_classification: "Official supplementary/summary material; not assumed trial-level raw."
+decision: Implementation-only
+action: "Keep Dyson as authoritative-source pointer/retrieval metadata only. Do not mirror a convenience copy and do not use it as trial-level model-validation data unless independently verified."
+reason: "Mirroring is unnecessary for reproducibility and repeated retrieval workarounds would add no scientific value."
+```
